@@ -1,0 +1,6 @@
+ls, 10 years, mean yield: 6.48, median yield: 7.71, min yield: -7.38, max yield: 15.62
+dca, 10 years, mean yield: 3.71, median yield: 4.06, min yield: -2.12, max yield: 10.10
+ls, 20 years, mean yield: 6.76, median yield: 6.93, min yield: -2.64, max yield: 13.63
+dca, 20 years, mean yield: 4.07, median yield: 4.28, min yield: 0.89, max yield: 8.72
+ls, 30 years, mean yield: 7.04, median yield: 7.34, min yield: 2.68, max yield: 9.95
+dca, 30 years, mean yield: 4.32, median yield: 4.26, min yield: 2.02, max yield: 7.32
