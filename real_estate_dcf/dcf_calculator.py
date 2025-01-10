@@ -135,7 +135,6 @@ class RealEstateDCF:
             if not os.path.exists('reports'):
                 os.makedirs('reports')
             plt.savefig('reports/dcf_chart.png')
-        plt.show()
         
         if save_markdown:
             self._generate_markdown_report(total_value, yearly_pvs, terminal_value_pv)
@@ -197,14 +196,14 @@ def main():
     
     # 设置参数（示例数据）
     dcf.set_parameters(
-        rental_income=2600*12,        # 年租金收入：7.2万
+        rental_income=5500*12,        # 年租金收入：7.2万
         operating_expenses=500,     # 年运营支出：0.1万
         growth_rate=0.0,            # 增长率：0%
-        discount_rate=0.015,        # 贴现率：4.5%
+        discount_rate=0.035,        # 贴现率：4.5%
         projection_years=50,        # 预测期：50年
         terminal_cap_rate=0.05,     # 最终资本化率：5%
         property_tax_rate=0.0,    # 房产税率：1.2%
-        property_value=2600*12*20      # 房产评估价值：144万（约为年租金的20倍）
+        property_value=5500*12*20      # 房产评估价值：144万（约为年租金的20倍）
     )
     
     # 生成报告
