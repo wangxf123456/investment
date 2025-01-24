@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import requests
 import scipy.stats as stats
+from statsmodels.nonparametric.smoothers_lowess import lowess
 import os
 
 def get_sp500_data():
@@ -82,17 +83,23 @@ def calculate_returns(prices, years=10):
     return returns * 100  # 转换为百分比
 
 def create_scatter_plot(combined_data, years, current_cape=37):
-    """创建散点图和趋势线"""
+    """创建散点图和拟合线"""
     plt.figure(figsize=(12, 8))
     sns.scatterplot(data=combined_data, x='CAPE', y=f'{years}Y_Returns', alpha=0.6)
     
-    # 添加趋势线
+    # 计算皮尔逊和斯皮尔曼相关系数
+    pearson_corr = combined_data['CAPE'].corr(combined_data[f'{years}Y_Returns'])
+    spearman_corr = combined_data['CAPE'].corr(combined_data[f'{years}Y_Returns'], method='spearman')
+    
+    # 线性回归
     z = np.polyfit(combined_data['CAPE'], combined_data[f'{years}Y_Returns'], 1)
     p = np.poly1d(z)
-    plt.plot(combined_data['CAPE'], p(combined_data['CAPE']), "r--", alpha=0.8)
+    plt.plot(combined_data['CAPE'], p(combined_data['CAPE']), "r--", alpha=0.8, label='线性回归')
     
-    # 计算相关系数
-    correlation = combined_data['CAPE'].corr(combined_data[f'{years}Y_Returns'])
+    # LOWESS平滑
+    lowess_result = lowess(combined_data[f'{years}Y_Returns'], combined_data['CAPE'], 
+                          frac=0.3, it=3, return_sorted=True)
+    plt.plot(lowess_result[:, 0], lowess_result[:, 1], 'b--', alpha=0.8, label='LOWESS平滑')
     
     # 添加当前CAPE的竖线
     plt.axvline(x=current_cape, color='r', linestyle='-', alpha=0.5)
@@ -100,9 +107,10 @@ def create_scatter_plot(combined_data, years, current_cape=37):
     plt.plot([current_cape], [predicted_return], 'ro', markersize=10)
     
     # 在图表上添加信息
-    equation = f'y = {z[0]:.2f}x + {z[1]:.2f}'
-    correlation_text = f'相关系数 = {correlation:.2f}'
+    equation = f'线性: y = {z[0]:.2f}x + {z[1]:.2f}'
+    correlation_text = f'皮尔逊相关系数 = {pearson_corr:.2f}\n斯皮尔曼相关系数 = {spearman_corr:.2f}'
     current_cape_text = f'当前CAPE = {current_cape}\n预期收益率 = {predicted_return:.2f}%'
+    
     plt.text(0.05, 0.95, equation + '\n' + correlation_text + '\n' + current_cape_text,
              transform=plt.gca().transAxes, 
              bbox=dict(facecolor='white', alpha=0.8))
@@ -113,6 +121,9 @@ def create_scatter_plot(combined_data, years, current_cape=37):
     plt.xlabel('席勒市盈率(CAPE)')
     plt.ylabel(f'未来{years}年年化收益率(%)')
     
+    # 添加图例
+    plt.legend()
+    
     # 添加网格
     plt.grid(True, alpha=0.3)
     
@@ -120,7 +131,11 @@ def create_scatter_plot(combined_data, years, current_cape=37):
     plt.savefig(f'sp500_cape_returns_{years}y.png', dpi=300, bbox_inches='tight')
     plt.close()
     
-    return correlation, z
+    return {
+        'pearson': pearson_corr,
+        'spearman': spearman_corr,
+        'linear': z
+    }
 
 def generate_report_data(combined_data_by_period, correlations, z_values):
     """生成报告所需的所有数据"""
@@ -133,13 +148,18 @@ def generate_report_data(combined_data_by_period, correlations, z_values):
     # 计算各期限的R²值和预期收益率
     r_squared_values = {}
     predicted_returns = {}
+    
     for years in [1, 3, 5, 10, 20, 30]:
         period_data = combined_data_by_period[years]
-        y_pred = np.polyval(z_values[years], period_data['CAPE'])
+        
+        # 线性回归的R²
+        y_pred = np.polyval(z_values[years]['linear'], period_data['CAPE'])
         y_actual = period_data[f'{years}Y_Returns']
         r_squared = 1 - (np.sum((y_actual - y_pred) ** 2) / np.sum((y_actual - y_actual.mean()) ** 2))
         r_squared_values[years] = r_squared
-        predicted_returns[years] = z_values[years][0] * current_cape + z_values[years][1]
+        
+        # 计算预期收益率
+        predicted_returns[years] = np.polyval(z_values[years]['linear'], current_cape)
     
     # 计算CAPE的百分位数
     cape_percentile = stats.percentileofscore(data_1y['CAPE'], current_cape)
@@ -154,40 +174,34 @@ def generate_report_data(combined_data_by_period, correlations, z_values):
         returns_data[f'returns_when_cape_high_{years}y'] = returns_when_high
         returns_data[f'returns_diff_{years}y'] = returns_when_low - returns_when_high
     
-    return {
-        'correlation_1y': correlations[1],
-        'correlation_3y': correlations[3],
-        'correlation_5y': correlations[5],
-        'correlation_10y': correlations[10],
-        'correlation_20y': correlations[20],
-        'correlation_30y': correlations[30],
-        'equation_1y': f'y = {z_values[1][0]:.2f}x + {z_values[1][1]:.2f}',
-        'equation_3y': f'y = {z_values[3][0]:.2f}x + {z_values[3][1]:.2f}',
-        'equation_5y': f'y = {z_values[5][0]:.2f}x + {z_values[5][1]:.2f}',
-        'equation_10y': f'y = {z_values[10][0]:.2f}x + {z_values[10][1]:.2f}',
-        'equation_20y': f'y = {z_values[20][0]:.2f}x + {z_values[20][1]:.2f}',
-        'equation_30y': f'y = {z_values[30][0]:.2f}x + {z_values[30][1]:.2f}',
-        'r_squared_1y': r_squared_values[1],
-        'r_squared_3y': r_squared_values[3],
-        'r_squared_5y': r_squared_values[5],
-        'r_squared_10y': r_squared_values[10],
-        'r_squared_20y': r_squared_values[20],
-        'r_squared_30y': r_squared_values[30],
-        'predicted_return_1y': predicted_returns[1],
-        'predicted_return_3y': predicted_returns[3],
-        'predicted_return_5y': predicted_returns[5],
-        'predicted_return_10y': predicted_returns[10],
-        'predicted_return_20y': predicted_returns[20],
-        'predicted_return_30y': predicted_returns[30],
+    # 准备返回数据
+    report_data = {
         'cape_percentile': cape_percentile,
         'cape_min': data_1y['CAPE'].min(),
         'cape_max': data_1y['CAPE'].max(),
         'cape_mean': data_1y['CAPE'].mean(),
         'cape_median': data_1y['CAPE'].median(),
         'cape_low': cape_low,
-        'cape_high': cape_high,
-        **returns_data  # 包含所有收益率相关的数据
+        'cape_high': cape_high
     }
+    
+    # 添加各期限的相关系数和回归方程
+    for years in [1, 3, 5, 10, 20, 30]:
+        report_data[f'correlation_pearson_{years}y'] = correlations[years]['pearson']
+        report_data[f'correlation_spearman_{years}y'] = correlations[years]['spearman']
+        
+        # 线性回归方程
+        linear_coef = z_values[years]['linear']
+        report_data[f'equation_linear_{years}y'] = f'y = {linear_coef[0]:.2f}x + {linear_coef[1]:.2f}'
+        
+        # R²值和预期收益率
+        report_data[f'r_squared_{years}y'] = r_squared_values[years]
+        report_data[f'predicted_return_{years}y'] = predicted_returns[years]
+    
+    # 添加收益率数据
+    report_data.update(returns_data)
+    
+    return report_data
 
 def main():
     # 设置中文字体
@@ -229,15 +243,20 @@ def main():
             print(f"  合并后数据范围：{period_data.index.min().strftime('%Y年%m月')} 至 {period_data.index.max().strftime('%Y年%m月')}")
             print(f"  CAPE范围：{period_data['CAPE'].min():.1f} - {period_data['CAPE'].max():.1f}")
             
-            # 创建图表并获取相关系数
-            correlation, z = create_scatter_plot(period_data, years)
-            correlations[years] = correlation
-            z_values[years] = z
-            print(f"  相关系数：{correlation:.3f}")
+            # 创建图表并获取相关系数和回归系数
+            results = create_scatter_plot(period_data, years)
+            correlations[years] = {
+                'pearson': results['pearson'],
+                'spearman': results['spearman']
+            }
+            z_values[years] = {
+                'linear': results['linear']
+            }
+            print(f"  皮尔逊相关系数：{results['pearson']:.3f}")
+            print(f"  斯皮尔曼相关系数：{results['spearman']:.3f}")
         
         # 生成报告数据
         print("\n正在生成报告...")
-        # 使用最短期限（1年期）的数据作为基础数据
         report_data = generate_report_data(combined_data_by_period, correlations, z_values)
         
         # 添加各期限的数据范围信息

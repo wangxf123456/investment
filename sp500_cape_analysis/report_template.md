@@ -21,40 +21,46 @@
 ## 各期限CAPE与收益率相关性分析
 
 ### 1年期（{period_1y_start} - {period_1y_end}）
-- 相关系数：{correlation_1y:.2f}
-- 回归方程：{equation_1y}
+- 皮尔逊相关系数：{correlation_pearson_1y:.2f}
+- 斯皮尔曼相关系数：{correlation_spearman_1y:.2f}
+- 线性回归方程：{equation_linear_1y}
 - R²值：{r_squared_1y:.2f}
-- 当前CAPE对应的预期收益率：{predicted_return_1y:.1f}%
+- 预期收益率：{predicted_return_1y:.1f}%
 
 ### 3年期（{period_3y_start} - {period_3y_end}）
-- 相关系数：{correlation_3y:.2f}
-- 回归方程：{equation_3y}
+- 皮尔逊相关系数：{correlation_pearson_3y:.2f}
+- 斯皮尔曼相关系数：{correlation_spearman_3y:.2f}
+- 线性回归方程：{equation_linear_3y}
 - R²值：{r_squared_3y:.2f}
-- 当前CAPE对应的预期收益率：{predicted_return_3y:.1f}%
+- 预期收益率：{predicted_return_3y:.1f}%
 
 ### 5年期（{period_5y_start} - {period_5y_end}）
-- 相关系数：{correlation_5y:.2f}
-- 回归方程：{equation_5y}
+- 皮尔逊相关系数：{correlation_pearson_5y:.2f}
+- 斯皮尔曼相关系数：{correlation_spearman_5y:.2f}
+- 线性回归方程：{equation_linear_5y}
 - R²值：{r_squared_5y:.2f}
-- 当前CAPE对应的预期收益率：{predicted_return_5y:.1f}%
+- 预期收益率：{predicted_return_5y:.1f}%
 
 ### 10年期（{period_10y_start} - {period_10y_end}）
-- 相关系数：{correlation_10y:.2f}
-- 回归方程：{equation_10y}
+- 皮尔逊相关系数：{correlation_pearson_10y:.2f}
+- 斯皮尔曼相关系数：{correlation_spearman_10y:.2f}
+- 线性回归方程：{equation_linear_10y}
 - R²值：{r_squared_10y:.2f}
-- 当前CAPE对应的预期收益率：{predicted_return_10y:.1f}%
+- 预期收益率：{predicted_return_10y:.1f}%
 
 ### 20年期（{period_20y_start} - {period_20y_end}）
-- 相关系数：{correlation_20y:.2f}
-- 回归方程：{equation_20y}
+- 皮尔逊相关系数：{correlation_pearson_20y:.2f}
+- 斯皮尔曼相关系数：{correlation_spearman_20y:.2f}
+- 线性回归方程：{equation_linear_20y}
 - R²值：{r_squared_20y:.2f}
-- 当前CAPE对应的预期收益率：{predicted_return_20y:.1f}%
+- 预期收益率：{predicted_return_20y:.1f}%
 
 ### 30年期（{period_30y_start} - {period_30y_end}）
-- 相关系数：{correlation_30y:.2f}
-- 回归方程：{equation_30y}
+- 皮尔逊相关系数：{correlation_pearson_30y:.2f}
+- 斯皮尔曼相关系数：{correlation_spearman_30y:.2f}
+- 线性回归方程：{equation_linear_30y}
 - R²值：{r_squared_30y:.2f}
-- 当前CAPE对应的预期收益率：{predicted_return_30y:.1f}%
+- 预期收益率：{predicted_return_30y:.1f}%
 
 ## CAPE分位与收益率分析
 
@@ -77,10 +83,14 @@
 
 ## 结论
 
-1. CAPE与未来收益率呈现负相关关系，相关性随着时间跨度的增加而增强。
-2. 当前CAPE处于历史较高水平，这可能意味着未来收益率将低于历史平均水平。
-3. 长期（20年和30年）投资的预期收益率波动相对较小，显示出更稳定的风险回报特征。
-4. 低CAPE时期的投资回报普遍优于高CAPE时期，这种差异在各个时间跨度上都很明显。
+1. CAPE与未来收益率的关系在不同时间跨度上表现不同：
+   - 短期（1-3年）：相关性较弱，预测能力有限
+   - 中期（5-10年）：显示出较强的负相关关系
+   - 长期（20-30年）：关系趋于稳定
+2. 斯皮尔曼相关系数与皮尔逊相关系数的差异反映了关系的非线性特征
+3. LOWESS平滑曲线显示了CAPE与收益率之间的局部趋势
+4. 当前CAPE处于历史较高水平，预示着未来收益率可能低于历史平均水平
+5. 低CAPE时期的投资回报普遍优于高CAPE时期，这种差异在各个时间跨度上都很明显
 
 ## 数据可视化
 
