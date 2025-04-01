@@ -14,3 +14,6 @@
 
 ## [标普500回报率和CAPE相关性](./sp500_cape_analysis/analysis_report.md)
 标普500回报率和CAPE相关性分析
+
+## [美国债务与金价关系分析](./gold_analysis/analysis_report.md)
+1970-2025年美国联邦债务与金价比率关系分析，包括债务/金价比率趋势和投资启示

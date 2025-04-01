@@ -15,11 +15,9 @@ def load_historical_components():
 def get_stock_data(symbol, year):
     """获取单个股票的年度数据"""
     try:
-        # 设置日期范围
         start_date = f"{year}-01-01"
         end_date = f"{year}-12-31"
         
-        # 下载数据
         df = yf.download(
             symbol,
             start=start_date,
@@ -29,11 +27,6 @@ def get_stock_data(symbol, year):
         
         if df.empty or len(df) < 2:
             print(f"{symbol} 数据不足")
-            return None
-            
-        # 检查数据列
-        if 'Close' not in df.columns:
-            print(f"{symbol} 数据格式不正确")
             return None
             
         # 计算回报率
@@ -73,11 +66,6 @@ def analyze_year(year, components, output_dir):
         result = get_stock_data(symbol, year)
         if result:
             all_results.append(result)
-        
-        # 每处理5个股票暂停一下
-        if processed % 5 == 0:
-            print(f"暂停2秒... (已完成: {processed}/{total_stocks})")
-            time.sleep(2)
     
     if not all_results:
         print(f"警告：{year}年没有获取到任何有效数据")
@@ -119,7 +107,7 @@ def main():
         
         # 分析每一年
         summary_report = "=== 标普500指数 年度最佳表现股票汇总 ===\n\n"
-        years = sorted([int(y) for y in components.keys()])
+        years = sorted([int(y) for y in components.keys()], reverse=True)
         total_years = len([y for y in years if y >= 2000 and y <= datetime.now().year])
         current_year = 0
         
