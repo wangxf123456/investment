@@ -7,19 +7,32 @@ import requests
 import scipy.stats as stats
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import os
+import time
 
 def get_sp500_data():
     """获取标普500数据，从1974年开始到现在"""
-    try:
-        sp500 = yf.download('^GSPC', start='1974-01-01', end=None)  # end=None 表示获取到最新数据
-        if sp500.empty:
-            raise Exception("获取标普500数据失败")
-        # 确保使用月末数据
-        monthly_data = sp500['Close'].resample('ME').last()
-        return monthly_data
-    except Exception as e:
-        print(f"获取标普500数据时出错: {str(e)}")
-        raise
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            print(f"  尝试下载 SP500 数据 (第 {attempt + 1}/{max_retries} 次)...")
+            # 不设置 session，让 yfinance 自己处理
+            ticker = yf.Ticker('^GSPC')
+            sp500 = ticker.history(start='1974-01-01', auto_adjust=True)
+            
+            if sp500.empty:
+                raise Exception("获取标普500数据失败")
+            # 确保使用月末数据
+            monthly_data = sp500['Close'].resample('M').last()
+            return monthly_data
+        except Exception as e:
+            print(f"  尝试 {attempt + 1}/{max_retries} 失败: {str(e)}")
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 10  # 递增等待时间
+                print(f"  等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
+            else:
+                print(f"获取标普500数据时出错: {str(e)}")
+                raise
 
 def get_shiller_cape():
     """从Robert Shiller的网站获取CAPE数据"""
@@ -50,7 +63,7 @@ def get_shiller_cape():
             df.set_index('Date', inplace=True)
             
             # 确保使用月末数据
-            df = df.resample('ME').last()
+            df = df.resample('M').last()
             
             # 删除临时文件
             os.remove('temp_shiller_data.xls')
@@ -81,6 +94,77 @@ def calculate_returns(prices, years=10):
             end_price = prices.iloc[i + years*12]
             returns.iloc[i] = (end_price / start_price) ** (1/years) - 1
     return returns * 100  # 转换为百分比
+
+def create_cape_price_comparison_plot(sp500_data, cape_data):
+    """创建CAPE和SP500股价的时间序列对比图"""
+    fig, ax1 = plt.subplots(figsize=(14, 8))
+    
+    # 统一时区（移除时区信息）
+    sp500_idx = sp500_data.index.tz_localize(None) if sp500_data.index.tz is not None else sp500_data.index
+    cape_idx = cape_data.index.tz_localize(None) if cape_data.index.tz is not None else cape_data.index
+    
+    sp500_data = sp500_data.copy()
+    sp500_data.index = sp500_idx
+    cape_data = cape_data.copy()
+    cape_data.index = cape_idx
+    
+    # 找到共同的时间范围
+    common_start = max(sp500_data.index.min(), cape_data.index.min())
+    common_end = min(sp500_data.index.max(), cape_data.index.max())
+    
+    # 筛选共同时间范围的数据
+    sp500_filtered = sp500_data[(sp500_data.index >= common_start) & (sp500_data.index <= common_end)]
+    cape_filtered = cape_data[(cape_data.index >= common_start) & (cape_data.index <= common_end)]
+    
+    # 删除缺失值并插值填充，避免图表断裂
+    sp500_filtered = sp500_filtered.dropna()
+    cape_filtered = cape_filtered.dropna()
+    
+    # 使用插值填充可能的缺失月份
+    sp500_filtered = sp500_filtered.asfreq('M').interpolate(method='linear')
+    cape_filtered = cape_filtered.asfreq('M').interpolate(method='linear')
+    
+    # 绘制SP500股价（左Y轴，使用对数刻度）
+    color1 = '#2E86AB'
+    ax1.set_xlabel('时间', fontsize=12)
+    ax1.set_ylabel('标普500指数', color=color1, fontsize=12)
+    ax1.semilogy(sp500_filtered.index, sp500_filtered.values, color=color1, linewidth=1.5, label='标普500指数')
+    ax1.tick_params(axis='y', labelcolor=color1)
+    ax1.set_ylim(bottom=sp500_filtered.min() * 0.8)
+    
+    # 创建右Y轴绘制CAPE
+    ax2 = ax1.twinx()
+    color2 = '#E94F37'
+    ax2.set_ylabel('CAPE (席勒市盈率)', color=color2, fontsize=12)
+    ax2.plot(cape_filtered.index, cape_filtered['CAPE'].values, color=color2, linewidth=1.5, alpha=0.8, label='CAPE')
+    ax2.tick_params(axis='y', labelcolor=color2)
+    
+    # 添加CAPE历史均值线
+    cape_mean = cape_filtered['CAPE'].mean()
+    ax2.axhline(y=cape_mean, color=color2, linestyle='--', alpha=0.5, linewidth=1)
+    ax2.text(cape_filtered.index[-1], cape_mean, f' 均值: {cape_mean:.1f}', 
+             color=color2, fontsize=10, va='center')
+    
+    # 设置标题
+    plt.title(f'标普500指数与CAPE历史走势对比\n({common_start.strftime("%Y年%m月")} - {common_end.strftime("%Y年%m月")})', 
+              fontsize=14, fontweight='bold')
+    
+    # 添加图例
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+    
+    # 添加网格
+    ax1.grid(True, alpha=0.3)
+    
+    # 调整布局
+    fig.tight_layout()
+    
+    # 保存图表
+    plt.savefig('sp500_cape_history.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"CAPE与股价对比图已保存为 sp500_cape_history.png")
 
 def create_scatter_plot(combined_data, years, current_cape=37):
     """创建散点图和拟合线"""
@@ -215,8 +299,16 @@ def main():
         print("正在获取CAPE数据...")
         cape_data = get_shiller_cape()
         
+        # 统一时区（移除时区信息）
+        if sp500_data.index.tz is not None:
+            sp500_data.index = sp500_data.index.tz_localize(None)
+        
         print(f"标普500数据范围：{sp500_data.index.min().strftime('%Y年%m月')} 至 {sp500_data.index.max().strftime('%Y年%m月')}")
         print(f"CAPE数据范围：{cape_data.index.min().strftime('%Y年%m月')} 至 {cape_data.index.max().strftime('%Y年%m月')}")
+        
+        # 生成CAPE与股价对比图
+        print("\n正在生成CAPE与股价对比图...")
+        create_cape_price_comparison_plot(sp500_data, cape_data)
         
         # 计算不同时期的收益率并分别分析
         print("\n正在计算和分析各期收益率...")

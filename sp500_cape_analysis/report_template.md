@@ -94,6 +94,9 @@
 
 ## 数据可视化
 
+### 标普500指数与CAPE历史走势对比
+![标普500与CAPE历史走势](sp500_cape_history.png)
+
 ### CAPE与未来1年收益率关系
 ![CAPE与未来1年收益率关系图](sp500_cape_returns_1y.png)
 
