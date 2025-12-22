@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>期权链数据Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            border-color: var(--primary);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .ticker-badge {
+            background: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .price {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 10px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 40px 0 20px 0;
+            color: var(--text-primary);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background: var(--bg-hover);
+            border-color: var(--primary);
+        }
+
+        .tab.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .options-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .options-table th {
+            background: var(--primary);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .options-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .options-table tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .positive {
+            color: var(--success);
+        }
+
+        .negative {
+            color: var(--danger);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .refresh-btn {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #e0e7ff;
+            transform: scale(1.05);
+        }
+
+        .highlight {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.2), transparent);
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>📊 期权链数据Dashboard</h1>
+                    <p class="subtitle">实时期权数据、Greeks与波动率分析</p>
+                </div>
+                <button class="refresh-btn" onclick="loadAllData()">🔄 刷新数据</button>
+            </div>
+        </header>
+
+        <div id="overview" class="stats-grid">
+            <div class="loading">加载数据中...</div>
+        </div>
+
+        <h2 class="section-title">📈 波动率分析</h2>
+        <div class="tabs" id="volatilityTabs"></div>
+        <div class="chart-container">
+            <canvas id="volatilityChart"></canvas>
+        </div>
+
+        <h2 class="section-title">🎯 期权链数据</h2>
+        <div class="tabs" id="tickerTabs"></div>
+        <div class="tabs" id="expirationTabs"></div>
+
+        <div class="grid-2">
+            <div class="chart-container">
+                <h3 style="margin-bottom: 20px;">看涨期权 (Calls)</h3>
+                <div id="callsTable"></div>
+            </div>
+            <div class="chart-container">
+                <h3 style="margin-bottom: 20px;">看跌期权 (Puts)</h3>
+                <div id="putsTable"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTicker = 'NVDA';
+        let currentExpiration = null;
+        let volatilityChart = null;
+
+        // 加载概览数据
+        async function loadOverview() {
+            try {
+                const response = await fetch('/api/overview');
+                const data = await response.json();
+
+                const html = data.map(item => `
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="ticker-badge">${item.ticker}</span>
+                        </div>
+                        <div class="price">$${item.current_price.toFixed(2)}</div>
+                        <div class="stat-row">
+                            <span class="stat-label">总期权数</span>
+                            <span class="stat-value">${item.total_options}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">到期日数量</span>
+                            <span class="stat-value">${item.num_expirations}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">HV (30天)</span>
+                            <span class="stat-value">${(item.hv.HV_30d * 100).toFixed(2)}%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">RV (30天)</span>
+                            <span class="stat-value">${(item.rv.RV_30d * 100).toFixed(2)}%</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.getElementById('overview').innerHTML = html;
+
+                // 创建波动率标签
+                const volTabsHtml = data.map(item =>
+                    `<button class="tab ${item.ticker === currentTicker ? 'active' : ''}" 
+                            onclick="loadVolatilityChart('${item.ticker}')">${item.ticker}</button>`
+                ).join('');
+                document.getElementById('volatilityTabs').innerHTML = volTabsHtml;
+
+                // 创建ticker标签
+                const tickerTabsHtml = data.map(item =>
+                    `<button class="tab ${item.ticker === currentTicker ? 'active' : ''}" 
+                            onclick="selectTicker('${item.ticker}')">${item.ticker}</button>`
+                ).join('');
+                document.getElementById('tickerTabs').innerHTML = tickerTabsHtml;
+
+            } catch (error) {
+                console.error('加载概览数据失败:', error);
+            }
+        }
+
+        // 加载波动率图表
+        async function loadVolatilityChart(ticker) {
+            currentTicker = ticker;
+
+            // 更新标签状态
+            document.querySelectorAll('#volatilityTabs .tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent === ticker);
+            });
+
+            try {
+                const response = await fetch(`/api/volatility/${ticker}`);
+                const data = await response.json();
+
+                const ctx = document.getElementById('volatilityChart').getContext('2d');
+
+                if (volatilityChart) {
+                    volatilityChart.destroy();
+                }
+
+                volatilityChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.periods,
+                        datasets: [
+                            {
+                                label: 'Historical Volatility (HV)',
+                                data: data.hv,
+                                borderColor: '#6366f1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Realized Volatility (RV)',
+                                data: data.rv,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${ticker} 波动率对比`,
+                                color: '#f8fafc',
+                                font: { size: 18, weight: 'bold' }
+                            },
+                            legend: {
+                                labels: { color: '#f8fafc', font: { size: 14 } }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#94a3b8',
+                                    callback: function (value) { return value + '%'; }
+                                },
+                                grid: { color: '#334155' }
+                            },
+                            x: {
+                                ticks: { color: '#94a3b8' },
+                                grid: { color: '#334155' }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('加载波动率图表失败:', error);
+            }
+        }
+
+        // 选择ticker
+        async function selectTicker(ticker) {
+            currentTicker = ticker;
+
+            // 更新标签状态
+            document.querySelectorAll('#tickerTabs .tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent === ticker);
+            });
+
+            try {
+                const response = await fetch(`/api/ticker/${ticker}`);
+                const data = await response.json();
+
+                // 创建到期日标签
+                const expTabsHtml = data.expirations.map((exp, idx) =>
+                    `<button class="tab ${idx === 0 ? 'active' : ''}" 
+                            onclick="loadOptionsChain('${ticker}', '${exp}')">${exp}</button>`
+                ).join('');
+                document.getElementById('expirationTabs').innerHTML = expTabsHtml;
+
+                // 加载第一个到期日的数据
+                if (data.expirations.length > 0) {
+                    loadOptionsChain(ticker, data.expirations[0]);
+                }
+            } catch (error) {
+                console.error('加载ticker数据失败:', error);
+            }
+        }
+
+        // 加载期权链
+        async function loadOptionsChain(ticker, expiration) {
+            currentExpiration = expiration;
+
+            // 更新标签状态
+            document.querySelectorAll('#expirationTabs .tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent === expiration);
+            });
+
+            try {
+                const response = await fetch(`/api/options/${ticker}/${expiration}`);
+                const data = await response.json();
+
+                // 渲染Calls表格
+                const callsHtml = renderOptionsTable(data.calls, 'CALL');
+                document.getElementById('callsTable').innerHTML = callsHtml;
+
+                // 渲染Puts表格
+                const putsHtml = renderOptionsTable(data.puts, 'PUT');
+                document.getElementById('putsTable').innerHTML = putsHtml;
+
+            } catch (error) {
+                console.error('加载期权链失败:', error);
+            }
+        }
+
+        // 渲染期权表格
+        function renderOptionsTable(options, type) {
+            if (!options || options.length === 0) {
+                return '<p style="text-align: center; padding: 20px;">暂无数据</p>';
+            }
+
+            return `
+                <div style="overflow-x: auto;">
+                    <table class="options-table">
+                        <thead>
+                            <tr>
+                                <th>行权价</th>
+                                <th>最新价</th>
+                                <th>买/卖价</th>
+                                <th>成交量</th>
+                                <th>IV</th>
+                                <th>Delta</th>
+                                <th>Gamma</th>
+                                <th>Theta</th>
+                                <th>Vega</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${options.map(opt => {
+                // 判断是否接近ATM
+                const isNearATM = opt.distance_from_atm && opt.distance_from_atm < 5;
+                const rowClass = isNearATM ? 'class="highlight"' : '';
+
+                // 格式化函数
+                const fmt = (val, decimals = 2, prefix = '') => {
+                    if (val === null || val === undefined || val === 0) return '-';
+                    return prefix + Number(val).toFixed(decimals);
+                };
+
+                const fmtPct = (val) => {
+                    if (val === null || val === undefined || val === 0) return '-';
+                    return (Number(val) * 100).toFixed(1) + '%';
+                };
+
+                return `
+                                <tr ${rowClass}>
+                                    <td><strong>$${fmt(opt.strike, 2)}</strong></td>
+                                    <td>${fmt(opt.lastPrice, 2, '$')}</td>
+                                    <td style="font-size: 0.85em;">${fmt(opt.bid, 2, '$')} / ${fmt(opt.ask, 2, '$')}</td>
+                                    <td>${opt.volume || 0}</td>
+                                    <td>${fmtPct(opt.impliedVolatility)}</td>
+                                    <td class="${opt.delta > 0 ? 'positive' : 'negative'}">${fmt(opt.delta, 3)}</td>
+                                    <td>${fmt(opt.gamma, 4)}</td>
+                                    <td class="${opt.theta < 0 ? 'negative' : 'positive'}">${fmt(opt.theta, 3)}</td>
+                                    <td>${fmt(opt.vega, 3)}</td>
+                                </tr>
+                            `}).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // 加载所有数据
+        async function loadAllData() {
+            await loadOverview();
+            await loadVolatilityChart(currentTicker);
+            await selectTicker(currentTicker);
+        }
+
+        // 页面加载时初始化
+        window.onload = loadAllData;
+    </script>
+</body>
+
+</html>
