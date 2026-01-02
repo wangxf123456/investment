@@ -1,121 +1,57 @@
-import io
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
-import requests
 from tabulate import tabulate
-import tqdm
-from typing import Any, Dict, List, Optional, Union
+import akshare as ak
 
 
-_HOUSEHOLD_URL_2015 = 'http://www.pbc.gov.cn/eportal/fileDir/defaultCurSite/resource/cms/2016/02/2016021816165233170.xls'
-_HOUSEHOLD_URL_2016 = 'http://www.pbc.gov.cn/eportal/fileDir/defaultCurSite/resource/cms/2017/02/2017020816484686050.xls'
-_HOUSEHOLD_URL_2017 = 'http://www.pbc.gov.cn/eportal/fileDir/defaultCurSite/resource/cms/2018/01/2018011616214550177.xls'
-_HOUSEHOLD_URL_2018 = 'http://www.pbc.gov.cn/eportal/fileDir/defaultCurSite/resource/cms/2019/02/2019020116022672266.xls'
-_HOUSEHOLD_URL_2019 = 'http://www.pbc.gov.cn/eportal/fileDir/defaultCurSite/resource/cms/2020/01/2020011915320918338.xls'
-_HOUSEHOLD_URL_2020 = 'http://www.pbc.gov.cn/eportal/fileDir/defaultCurSite/resource/cms/2021/01/2021011909493056248.xls'
-_HOUSEHOLD_URL_2021 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2022/01/2022011915585996443.xlsx'
-_HOUSEHOLD_URL_2022 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/01/2023011817001029444.xls'
-_HOUSEHOLD_URL_2023 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2024/01/2024011714311938329.xlsx'
-_HOUSEHOLD_URL_2024 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2024/11/2024111417055388147.xlsx'
-_ENTERPRISE_URL_2015 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304735226.xls'
-_ENTERPRISE_URL_2016 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304755177.xls'
-_ENTERPRISE_URL_2017 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304771269.xls'
-_ENTERPRISE_URL_2018 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304726945.xls'
-_ENTERPRISE_URL_2019 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304759964.xls'
-_ENTERPRISE_URL_2020 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304733431.xls'
-_ENTERPRISE_URL_2021 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304711200.xls'
-_ENTERPRISE_URL_2022 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2023/02/2023022414304762017.xls'
-_ENTERPRISE_URL_2023 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2024/01/2024011714335851539.xlsx'
-_ENTERPRISE_URL_2024 = 'http://www.pbc.gov.cn/diaochatongjisi/resource/cms/2024/11/2024111417105027190.xlsx'
+def get_money_supply_data() -> pd.DataFrame:
+    """从AKShare获取货币供应量数据"""
+    print('正在获取货币供应量数据...')
+    df = ak.macro_china_money_supply()
 
-_BASE_YEAR = 2015
-_ALL_DATA_HOUSEHOLD = [_HOUSEHOLD_URL_2015, _HOUSEHOLD_URL_2016, _HOUSEHOLD_URL_2017, _HOUSEHOLD_URL_2018, _HOUSEHOLD_URL_2019,
-                       _HOUSEHOLD_URL_2020, _HOUSEHOLD_URL_2021, _HOUSEHOLD_URL_2022, _HOUSEHOLD_URL_2023, _HOUSEHOLD_URL_2024]
-_ALL_DATA_ENTERPRISE = [_ENTERPRISE_URL_2015, _ENTERPRISE_URL_2016, _ENTERPRISE_URL_2017, _ENTERPRISE_URL_2018, _ENTERPRISE_URL_2019,
-                        _ENTERPRISE_URL_2020, _ENTERPRISE_URL_2021, _ENTERPRISE_URL_2022, _ENTERPRISE_URL_2023, _ENTERPRISE_URL_2024]
+    # 数据是倒序的，反转一下
+    df = df.iloc[::-1].reset_index(drop=True)
 
-_HOUSEHOLD_ROW_NUMBER = 10
-_ENTERPRISE_ROW_NUMBER = 14
+    # 重命名列
+    df.columns = ['date', 'M2', 'M2_yoy', 'M2_mom', 'M1', 'M1_yoy', 'M1_mom', 'M0', 'M0_yoy', 'M0_mom']
+
+    # 解析日期
+    df['date'] = pd.to_datetime(df['date'], format='%Y年%m月份')
+
+    # 只保留需要的列
+    df = df[['date', 'M0', 'M1', 'M2', 'M0_yoy', 'M1_yoy', 'M2_yoy']]
+
+    return df
 
 
-def process_deposit_data(deposit: Union[str, float]) -> float:
-    if isinstance(deposit, str):
-        return float(deposit.replace(u'\xa0', u' ').strip())
-    else:
-        return deposit
+def calculate_derived_metrics(data: pd.DataFrame) -> pd.DataFrame:
+    """计算派生指标"""
+    # 从2025年1月起，M1包括：M0 + 单位活期存款 + 个人活期存款 + 非银行支付机构客户备付金
+    # 所以 单位活期存款（近似）= M1 - M0
+    data['enterprise'] = data['M1'] - data['M0']
 
-
-def get_row_numer(base_row_number, year, column_name):
-    if column_name == 'enterprise':
-        return base_row_number if year != 2022 else base_row_number - 1
-    else:
-        return base_row_number if year != 2022 else base_row_number + 1
-
-
-def process_data(url_list, base_row_number, column_name) -> pd.DataFrame:
-    result_dict = {
-        'date': [], column_name: [],
-    }
-    for idx, url in enumerate(tqdm.tqdm(url_list, desc=f'Processing {column_name}')):
-        xls_content = fetch_data(url)
-        if xls_content:
-            xls_file_obj = io.BytesIO(xls_content)
-            data = pd.read_excel(xls_file_obj)
-            year = _BASE_YEAR + idx
-            row_number = get_row_numer(base_row_number, year, column_name)
-            for month, deposit in enumerate(data.iloc[row_number][1:]):
-                date = f'{_BASE_YEAR + idx}-{month + 1}'
-                result_dict['date'].append(date)
-                result_dict[column_name].append(process_deposit_data(deposit))
-                if column_name == 'enterprise':
-                    m0 = data.iloc[row_number - 1][1:]
-                    if not result_dict.get('m0'):
-                        result_dict['m0'] = []
-                    result_dict['m0'].append(process_deposit_data(m0.iloc[month]))
-        else:
-            print(f"Failed to retrieve data from {url}")
-            continue
-    result = pd.DataFrame(result_dict)
-    return result
-
-
-def fetch_data(url: str) -> Optional[str]:
-    response = requests.get(url)
-    response.encoding = 'utf-8'
-    if response.status_code == 200:
-        return response.content
-    else:
-        return None
-
-
-def calculate_year_on_year_changes(data: pd.DataFrame) -> pd.DataFrame:
-    data['household_yoy'] = data['household'].pct_change(periods=12, fill_method=None) * 100
-    data['household_yoy'] = data['household_yoy'].map('{:.2f}%'.format)
+    # 计算同比增长率
     data['enterprise_yoy'] = data['enterprise'].pct_change(periods=12, fill_method=None) * 100
-    data['enterprise_yoy'] = data['enterprise_yoy'].map('{:.2f}%'.format)
-    data['m0_yoy'] = data['m0'].pct_change(periods=12, fill_method=None) * 100
-    data['m0_yoy'] = data['m0_yoy'].map('{:.2f}%'.format)
-    data['household_enterprise'] = data['household'] + data['enterprise']
-    data['household_enterprise_yoy'] = data['household_enterprise'].pct_change(periods=12, fill_method=None) * 100
-    data['household_enterprise_yoy'] = data['household_enterprise_yoy'].map('{:.2f}%'.format)
-    data['m1'] = data['enterprise'] + data['m0']
-    data['m1_yoy'] = data['m1'].pct_change(periods=12, fill_method=None) * 100
-    data['m1_yoy'] = data['m1_yoy'].map('{:.2f}%'.format)
-    data['total'] = data['household_enterprise'] + data['m0']
-    data['total_yoy'] = data['total'].pct_change(periods=12, fill_method=None) * 100
-    data['total_yoy'] = data['total_yoy'].map('{:.2f}%'.format)
+    data['enterprise_yoy'] = data['enterprise_yoy'].map(lambda x: f'{x:.2f}%' if pd.notna(x) else 'nan%')
+
+    # 格式化同比增长率
+    data['M0_yoy_formatted'] = data['M0_yoy'].map(lambda x: f'{x:.2f}%' if pd.notna(x) else 'nan%')
+    data['M1_yoy_formatted'] = data['M1_yoy'].map(lambda x: f'{x:.2f}%' if pd.notna(x) else 'nan%')
+    data['M2_yoy_formatted'] = data['M2_yoy'].map(lambda x: f'{x:.2f}%' if pd.notna(x) else 'nan%')
+
     return data
 
 
 def save_figure(index, data, title: str, file_name: str = None) -> None:
+    """保存图表"""
     if not file_name:
         file_name = title
     plt.figure(figsize=(10, 6))
     plt.plot(index, data, marker='o', linestyle='-', color='dodgerblue', label=title)
     plt.title(title)
     plt.xlabel('日期')
-    plt.ylabel(f'{title}(亿)')
+    plt.ylabel(f'{title}(亿元)')
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
     plt.xticks(rotation=45, fontsize=8)
@@ -128,7 +64,10 @@ def save_figure(index, data, title: str, file_name: str = None) -> None:
 
 
 def generate_markdown(df):
-    df_cleaned = df.dropna(subset=['个人活期存款'])
+    """生成Markdown文档"""
+    # df已经是重命名后的，所以使用新的列名
+    first_col = df.columns[0]
+    df_cleaned = df.dropna(subset=[first_col])
     df_sorted = df_cleaned.sort_index(ascending=False)
     markdown_table = tabulate(df_sorted, headers='keys', tablefmt='pipe', stralign='left', numalign='left')
     with open('README.tpl', 'r', encoding='utf-8') as readme_file:
@@ -139,25 +78,57 @@ def generate_markdown(df):
 
 
 def main():
-    df_household = process_data(_ALL_DATA_HOUSEHOLD, _HOUSEHOLD_ROW_NUMBER, 'household')
-    df_enterprise = process_data(_ALL_DATA_ENTERPRISE, _ENTERPRISE_ROW_NUMBER, 'enterprise')
-    df = pd.merge(df_household, df_enterprise, on='date')
-    df = calculate_year_on_year_changes(df)
-    df['date'] = pd.to_datetime(df['date'], format='%Y-%m')
+    # 获取数据
+    df = get_money_supply_data()
+
+    # 计算派生指标
+    df = calculate_derived_metrics(df)
+
+    # 设置日期为索引
     df.set_index('date', inplace=True)
-    save_figure(df.index, df['household'], '个人活期存款')
-    save_figure(df.index, df['enterprise'], '企业活期存款')
-    save_figure(df.index, df['household_enterprise'], '企业活期存款 + 个人活期存款', '企业活期存款_个人活期存款')
-    save_figure(df.index, df['m1'], 'M1', 'M1')
-    save_figure(df.index, df['total'], '企业活期存款 + 个人活期存款 + M0', '企业活期存款_个人活期存款_M0')
-    df.rename(columns={'household': '个人活期存款', 'enterprise': '单位活期存款', 'household_yoy':
-                       '个人活期同比', 'enterprise_yoy': '单位活期同比', 'total': '单位个人M0合计',
-                       'total_yoy': '单位个人M0合计同比', 'household_enterprise': '单位个人合计',
-                       'household_enterprise_yoy': '单位个人合计同比'}, inplace=True)
-    df.index.name = '日期'
-    df.index = df.index.strftime('%Y-%m')
-    df.to_csv('result.csv', float_format='%.2f')
-    generate_markdown(df)
+
+    # 生成图表
+    print('正在生成图表...')
+    save_figure(df.index, df['M0'], 'M0（流通中货币）', 'M0')
+    save_figure(df.index, df['M1'], 'M1（狭义货币）', 'M1')
+    save_figure(df.index, df['M2'], 'M2（广义货币）', 'M2')
+    save_figure(df.index, df['enterprise'], '单位活期存款（M1-M0）', '单位活期存款')
+
+    # 准备输出数据
+    output_df = df.copy()
+    output_df.index.name = '日期'
+    output_df.index = output_df.index.strftime('%Y-%m')
+
+    # 重命名列以便输出
+    output_df.rename(columns={
+        'M0': 'M0(亿元)',
+        'M1': 'M1(亿元)',
+        'M2': 'M2(亿元)',
+        'M0_yoy': 'M0同比(%)',
+        'M1_yoy': 'M1同比(%)',
+        'M2_yoy': 'M2同比(%)',
+        'enterprise': '单位活期存款(亿元)',
+        'enterprise_yoy': '单位活期同比',
+        'M0_yoy_formatted': 'M0同比',
+        'M1_yoy_formatted': 'M1同比',
+        'M2_yoy_formatted': 'M2同比'
+    }, inplace=True)
+
+    # 选择要保存的列
+    columns_to_save = ['M0(亿元)', 'M1(亿元)', 'M2(亿元)', 'M0同比', 'M1同比', 'M2同比', '单位活期存款(亿元)', '单位活期同比']
+    output_df = output_df[columns_to_save]
+
+    # 保存CSV
+    print('正在保存数据...')
+    output_df.to_csv('result.csv', float_format='%.2f')
+
+    # 生成Markdown
+    print('正在生成README...')
+    generate_markdown(output_df)
+
+    print('数据更新完成!')
+    print(f'数据范围: {output_df.index[0]} 到 {output_df.index[-1]}')
+    print(f'总共 {len(output_df)} 条记录')
 
 
 if __name__ == '__main__':
